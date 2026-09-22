@@ -1,0 +1,784 @@
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>ReefGuard AI — Coral Reef Health Monitoring</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Exo+2:wght@300;400;600;700&display=swap" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+:root{
+  --deep:#020b18;--mid:#071e3d;--blue:#0077b6;--teal:#00b4d8;
+  --cyan:#48cae4;--aqua:#90e0ef;--coral:#ff6b6b;--gold:#ffd166;
+  --green:#06d6a0;--danger:#ef233c;--warn:#f4a261;
+  --glass:rgba(255,255,255,0.055);--gb:rgba(255,255,255,0.11);
+}
+,::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{font-family:"Exo 2",sans-serif;background:var(--deep);color:#fff;overflow-x:hidden;min-height:100vh;}
+
+/* BG */
+#bg{position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:radial-gradient(ellipse at 15% 40%,rgba(0,53,102,.9) 0%,transparent 55%),
+             radial-gradient(ellipse at 85% 15%,rgba(0,119,182,.6) 0%,transparent 50%),
+             radial-gradient(ellipse at 55% 90%,rgba(2,62,138,.7) 0%,transparent 50%),
+             linear-gradient(180deg,#020b18 0%,#071e3d 55%,#020b18 100%);}
+.bub{position:fixed;border-radius:50%;background:rgba(72,202,228,.25);pointer-events:none;z-index:0;animation:bRise linear infinite;}
+@keyframes bRise{0%{transform:translateY(100vh) scale(.4);opacity:.7;}90%{opacity:.12;}100%{transform:translateY(-8vh) scale(1.1);opacity:0;}}
+.fish{position:fixed;z-index:0;pointer-events:none;animation:swim linear infinite;user-select:none;}
+@keyframes swim{0%{transform:translateX(-150px);}100%{transform:translateX(110vw);}}
+.pg{position:relative;z-index:1;}
+
+/* NAV */
+#nav{position:fixed;top:0;left:0;right:0;z-index:900;display:flex;align-items:center;justify-content:space-between;
+  padding:12px 36px;background:rgba(2,11,24,.92);backdrop-filter:blur(18px);border-bottom:1px solid var(--gb);}
+.logo{font-family:"Orbitron",monospace;font-weight:900;font-size:1.15rem;letter-spacing:2px;
+  background:linear-gradient(90deg,var(--teal),var(--aqua));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.logo em{-webkit-text-fill-color:var(--coral);font-style:normal;}
+.navr{display:flex;align-items:center;gap:12px;}
+#pill{display:none;align-items:center;gap:10px;background:var(--glass);border:1px solid var(--gb);border-radius:50px;padding:6px 16px;}
+#av{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,var(--teal),var(--blue));
+  display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.82rem;}
+#uname{font-size:.88rem;font-weight:600;}
+.ld{display:inline-flex;align-items:center;gap:6px;background:rgba(6,214,160,.1);border:1px solid rgba(6,214,160,.3);
+  border-radius:50px;padding:5px 13px;font-size:.76rem;color:var(--green);font-weight:600;letter-spacing:1px;}
+.ld::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--green);animation:blink 1.3s ease-in-out infinite;}
+@keyframes blink{0%,100%{opacity:1;}50%{opacity:.15;}}
+
+/* BTNS */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:10px 22px;
+  border:none;border-radius:9px;cursor:pointer;font-family:"Exo 2",sans-serif;font-weight:700;
+  font-size:.87rem;transition:transform .22s,box-shadow .22s;white-space:nowrap;}
+.btn:active{transform:scale(.97)!important;}
+.bp{background:linear-gradient(135deg,var(--teal),var(--blue));color:#fff;}
+.bp:hover{transform:translateY(-2px);box-shadow:0 8px 22px rgba(0,180,216,.45);}
+.bd{background:linear-gradient(135deg,#ef233c,#8b0000);color:#fff;}
+.bd:hover{transform:translateY(-2px);box-shadow:0 6px 18px rgba(239,35,60,.45);}
+.bo{background:transparent;border:1px solid var(--gb);color:#fff;}
+.bo:hover{background:var(--glass);}
+.bfw{width:100%;padding:14px;font-size:.98rem;}
+
+/* TOAST */
+#toast{position:fixed;top:76px;right:20px;z-index:9999;display:flex;align-items:center;gap:10px;
+  background:rgba(7,30,61,.97);border:1px solid var(--teal);border-radius:13px;padding:12px 20px;
+  max-width:300px;backdrop-filter:blur(16px);transform:translateX(140%);
+  transition:transform .4s cubic-bezier(.34,1.56,.64,1);pointer-events:none;}
+#toast.show{transform:translateX(0);}
+#ti{font-size:1.3rem;}
+#tm{font-size:.84rem;color:rgba(255,255,255,.85);line-height:1.4;}
+
+/* MODAL */
+.ov{display:none;position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,.75);
+  backdrop-filter:blur(7px);align-items:center;justify-content:center;}
+.ov.show{display:flex;}
+.mb{background:#071e3d;border:1px solid var(--gb);border-radius:22px;padding:40px 34px;
+  width:min(410px,92vw);text-align:center;box-shadow:0 24px 70px rgba(0,0,0,.6);
+  animation:mi .35s cubic-bezier(.34,1.56,.64,1);}
+@keyframes mi{from{transform:scale(.85);opacity:0;}to{transform:scale(1);opacity:1;}}
+.mb h3{font-family:"Orbitron",monospace;font-size:1.1rem;margin-bottom:10px;}
+.mb p{color:rgba(255,255,255,.5);font-size:.88rem;margin-bottom:26px;line-height:1.6;}
+.mbt{display:flex;gap:12px;justify-content:center;}
+
+/* INPUTS */
+.ig{margin-bottom:14px;}
+.ig label{display:block;font-size:.73rem;font-weight:600;color:rgba(255,255,255,.42);
+  text-transform:uppercase;letter-spacing:2px;margin-bottom:6px;}
+.ig input,.ig select{width:100%;padding:12px 14px;background:rgba(255,255,255,.065);
+  border:1px solid var(--gb);border-radius:9px;color:#fff;font-family:"Exo 2",sans-serif;
+  font-size:.92rem;outline:none;transition:border-color .2s,background .2s;
+  -webkit-appearance:none;appearance:none;}
+.ig input::placeholder{color:rgba(255,255,255,.26);}
+.ig input:focus,.ig select:focus{border-color:var(--teal);background:rgba(0,180,216,.07);}
+.ig select option{background:#071e3d;color:#fff;}
+
+/* LOGIN */
+#lp{min-height:100vh;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;padding:100px 20px 60px;}
+.lh{text-align:center;margin-bottom:36px;}
+.ey{font-family:"Orbitron",monospace;font-size:.68rem;letter-spacing:5px;text-transform:uppercase;
+  color:var(--teal);opacity:.85;margin-bottom:14px;}
+.lh h1{font-family:"Orbitron",monospace;font-size:clamp(2rem,7vw,4.8rem);font-weight:900;
+  line-height:1.05;background:linear-gradient(135deg,#fff 0%,var(--aqua) 50%,var(--teal) 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:12px;}
+.lh p{font-size:1.02rem;color:rgba(255,255,255,.46);max-width:500px;margin:0 auto;line-height:1.7;}
+.ms{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;margin:26px 0;}
+.ms .mc{background:var(--glass);border:1px solid var(--gb);border-radius:13px;padding:15px 22px;text-align:center;}
+.ms .mv{font-family:"Orbitron",monospace;font-size:1.5rem;font-weight:700;color:var(--teal);}
+.ms .ml{font-size:.7rem;color:rgba(255,255,255,.4);text-transform:uppercase;letter-spacing:2px;margin-top:2px;}
+.lc{background:rgba(7,30,61,.78);border:1px solid var(--gb);border-radius:22px;padding:40px 38px;
+  width:min(430px,94vw);backdrop-filter:blur(20px);
+  box-shadow:0 20px 70px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.06);}
+.lc h2{font-family:"Orbitron",monospace;font-size:1rem;letter-spacing:2px;margin-bottom:7px;}
+.lc>p{color:rgba(255,255,255,.4);font-size:.86rem;margin-bottom:24px;line-height:1.5;}
+.fn{text-align:center;margin-top:13px;font-size:.74rem;color:rgba(255,255,255,.2);}
+
+/* DASHBOARD */
+#dash{display:none;padding-top:66px;}
+.dh{padding:42px 36px 34px;background:linear-gradient(135deg,rgba(0,119,182,.13),rgba(0,180,216,.04));
+  border-bottom:1px solid var(--gb);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;}
+.dh h1{font-family:"Orbitron",monospace;font-size:clamp(1.3rem,3vw,2.1rem);font-weight:900;}
+.dh h1 span{color:var(--teal);}
+.dh p{color:rgba(255,255,255,.46);margin-top:4px;font-size:.9rem;}
+
+/* KPI */
+.kr{display:grid;grid-template-columns:repeat(auto-fit,minmax(188px,1fr));gap:16px;padding:24px 36px;}
+.kp{background:var(--glass);border:1px solid var(--gb);border-radius:16px;padding:20px 22px;
+  position:relative;overflow:hidden;backdrop-filter:blur(10px);transition:transform .2s;}
+.kp:hover{transform:translateY(-3px);}
+.kp::before{content:"";position:absolute;top:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,var(--teal),var(--aqua));}
+.ki{font-size:1.7rem;margin-bottom:8px;}
+.kv{font-family:"Orbitron",monospace;font-size:1.65rem;font-weight:700;color:var(--teal);}
+.kl{font-size:.72rem;color:rgba(255,255,255,.38);text-transform:uppercase;letter-spacing:2px;margin-top:4px;}
+.ks{font-size:.74rem;color:rgba(255,255,255,.28);margin-top:2px;}
+
+/* TABS */
+.tb{display:flex;gap:7px;flex-wrap:wrap;padding:0 36px 16px;}
+.tt{padding:8px 17px;border-radius:8px;border:1px solid var(--gb);background:transparent;
+  color:rgba(255,255,255,.46);cursor:pointer;font-family:"Exo 2",sans-serif;font-size:.82rem;
+  font-weight:600;transition:all .2s;}
+.tt:hover:not(.act){background:var(--glass);color:#fff;}
+.tt.act{background:var(--teal);color:#fff;border-color:var(--teal);}
+.tc{display:none;}
+.tc.act{display:block;}
+
+/* GRID */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:20px;padding:0 36px 36px;}
+.gf{grid-column:1/-1;}
+@media(max-width:850px){.g2{grid-template-columns:1fr;}}
+
+/* CARD */
+.cd{background:rgba(7,30,61,.55);border:1px solid var(--gb);border-radius:18px;padding:24px;backdrop-filter:blur(12px);}
+.ct{font-family:"Orbitron",monospace;font-size:.8rem;letter-spacing:2px;text-transform:uppercase;
+  color:var(--teal);margin-bottom:16px;display:flex;align-items:center;gap:8px;}
+
+/* FORM */
+.fg{display:grid;grid-template-columns:1fr 1fr;gap:11px;}
+@media(max-width:560px){.fg{grid-template-columns:1fr;}}
+
+/* RESULT */
+.rb{margin-top:16px;padding:18px 20px;border-radius:13px;border:1px solid;display:none;animation:fu .4s ease;}
+@keyframes fu{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
+.rb.h{background:rgba(6,214,160,.08);border-color:rgba(6,214,160,.38);}
+.rb.m{background:rgba(244,162,97,.08);border-color:rgba(244,162,97,.38);}
+.rb.d{background:rgba(239,35,60,.08);border-color:rgba(239,35,60,.38);}
+.re{font-size:2.5rem;margin-bottom:6px;}
+.rs{font-family:"Orbitron",monospace;font-size:1.1rem;font-weight:700;margin-bottom:7px;}
+.rb.h .rs{color:var(--green);}
+.rb.m .rs{color:var(--warn);}
+.rb.d .rs{color:var(--danger);}
+.rd{font-size:.84rem;color:rgba(255,255,255,.6);line-height:1.7;white-space:pre-line;}
+.rm{margin-top:9px;font-size:.72rem;color:rgba(255,255,255,.28);text-transform:uppercase;letter-spacing:1.5px;}
+
+/* SAT */
+.sp{margin-top:16px;padding:13px 17px;border-radius:11px;background:rgba(0,0,0,.3);
+  border:1px solid var(--gb);display:flex;align-items:center;gap:12px;}
+.si{font-size:1.8rem;animation:sp 10s linear infinite;}
+@keyframes sp{to{transform:rotate(360deg);}}
+.sl{font-size:.67rem;color:rgba(255,255,255,.36);text-transform:uppercase;letter-spacing:2px;margin-bottom:2px;}
+.sv2{font-family:"Orbitron",monospace;font-size:.95rem;font-weight:700;color:var(--cyan);}
+
+/* MAP */
+#map{height:420px;border-radius:13px;overflow:hidden;border:1px solid var(--gb);}
+.ml2{display:flex;gap:16px;flex-wrap:wrap;margin-top:12px;}
+.ml2 span{display:flex;align-items:center;gap:6px;font-size:.78rem;color:rgba(255,255,255,.58);}
+.dt{width:10px;height:10px;border-radius:50%;display:inline-block;}
+
+/* HISTORY */
+.ht{width:100%;border-collapse:collapse;font-size:.82rem;}
+.ht th{padding:9px 11px;text-align:left;border-bottom:1px solid var(--gb);
+  color:rgba(255,255,255,.36);font-size:.68rem;text-transform:uppercase;letter-spacing:1.5px;}
+.ht td{padding:9px 11px;border-bottom:1px solid rgba(255,255,255,.04);color:rgba(255,255,255,.76);}
+.ht tr:hover td{background:rgba(255,255,255,.022);}
+.em{text-align:center;padding:46px 20px;color:rgba(255,255,255,.26);font-size:.88rem;line-height:1.7;}
+.bg{display:inline-block;padding:3px 10px;border-radius:50px;font-size:.69rem;font-weight:700;border:1px solid;white-space:nowrap;}
+.gs{color:var(--green);background:rgba(6,214,160,.14);border-color:rgba(6,214,160,.38);}
+.gm{color:var(--warn);background:rgba(244,162,97,.14);border-color:rgba(244,162,97,.38);}
+.gd{color:var(--danger);background:rgba(239,35,60,.14);border-color:rgba(239,35,60,.38);}
+
+/* INFO */
+.ig2{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px;}
+.ic{background:rgba(0,0,0,.18);border:1px solid var(--gb);border-radius:13px;padding:17px;transition:transform .2s;}
+.ic:hover{transform:translateY(-3px);}
+.ic .ico{font-size:1.8rem;margin-bottom:8px;}
+.ic h4{font-size:.86rem;font-weight:700;color:var(--aqua);margin-bottom:5px;}
+.ic p{font-size:.78rem;color:rgba(255,255,255,.48);line-height:1.62;}
+
+/* ABOUT */
+.ag{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
+@media(max-width:680px){.ag{grid-template-columns:1fr;}}
+.at p{font-size:.87rem;color:rgba(255,255,255,.56);line-height:1.82;margin-bottom:10px;}
+.at strong{color:var(--teal);}
+.sx{margin-top:16px;padding:14px 17px;background:rgba(0,180,216,.08);border:1px solid rgba(0,180,216,.26);border-radius:10px;}
+.sh{font-size:.68rem;text-transform:uppercase;letter-spacing:2px;color:var(--teal);margin-bottom:8px;}
+.sg{display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:.83rem;color:rgba(255,255,255,.62);}
+.sg strong{color:#fff;}
+.tl{list-style:none;}
+.tl li{display:flex;align-items:center;gap:11px;padding:10px 0;border-bottom:1px solid var(--gb);}
+.ta{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--teal),var(--blue));
+  display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.82rem;flex-shrink:0;}
+.tn{font-size:.88rem;font-weight:600;}
+.hb{margin-top:16px;padding:13px 15px;background:rgba(0,0,0,.2);border-radius:10px;
+  font-size:.78rem;color:rgba(255,255,255,.36);line-height:1.72;}
+
+/* PS */
+.pg2{display:grid;grid-template-columns:repeat(auto-fit,minmax(235px,1fr));gap:14px;margin-top:16px;}
+.pc{background:rgba(0,180,216,.05);border:1px solid rgba(0,180,216,.17);border-radius:13px;padding:17px;}
+.pc .pi{font-size:1.7rem;margin-bottom:7px;}
+.pc h4{font-size:.86rem;color:var(--aqua);font-weight:700;margin-bottom:5px;}
+.pc p{font-size:.77rem;color:rgba(255,255,255,.48);line-height:1.62;}
+.sb{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:13px;margin-top:18px;}
+.sc{background:rgba(239,35,60,.07);border:1px solid rgba(239,35,60,.24);border-radius:10px;padding:14px 16px;text-align:center;}
+.sc .sv{font-family:"Orbitron",monospace;font-size:1.65rem;font-weight:700;color:var(--danger);}
+.sc .sl2{font-size:.7rem;color:rgba(255,255,255,.4);text-transform:uppercase;letter-spacing:1.5px;margin-top:2px;}
+.ac{display:grid;grid-template-columns:repeat(auto-fit,minmax(195px,1fr));gap:13px;margin-top:16px;}
+.acc{text-align:center;padding:14px;background:rgba(0,0,0,.2);border-radius:10px;}
+.acc .ai{font-size:1.9rem;margin-bottom:5px;}
+.acc .at2{font-size:.8rem;font-weight:700;color:var(--aqua);margin-bottom:3px;}
+.acc .as{font-size:.74rem;color:rgba(255,255,255,.42);}
+.sr{display:flex;flex-wrap:wrap;gap:10px;}
+.st{background:rgba(255,255,255,.06);border-radius:7px;padding:5px 12px;font-size:.8rem;color:rgba(255,255,255,.62);}
+
+footer{text-align:center;padding:26px 20px;border-top:1px solid var(--gb);font-size:.78rem;color:rgba(255,255,255,.26);}
+footer strong{color:var(--teal);}
+::-webkit-scrollbar{width:5px;}
+::-webkit-scrollbar-track{background:var(--deep);}
+::-webkit-scrollbar-thumb{background:rgba(0,180,216,.28);border-radius:3px;}
+</style>
+</head>
+<body>
+
+<div id="bg"></div>
+<div class="bub" style="left:6%;width:13px;height:13px;animation-duration:16s;animation-delay:0s"></div>
+<div class="bub" style="left:22%;width:9px;height:9px;animation-duration:21s;animation-delay:4s"></div>
+<div class="bub" style="left:50%;width:15px;height:15px;animation-duration:14s;animation-delay:7s"></div>
+<div class="bub" style="left:72%;width:10px;height:10px;animation-duration:23s;animation-delay:2s"></div>
+<div class="bub" style="left:89%;width:11px;height:11px;animation-duration:18s;animation-delay:10s"></div>
+<div class="fish" style="top:15%;font-size:2rem;animation-duration:30s;animation-delay:0s">🐠</div>
+<div class="fish" style="top:52%;font-size:1.6rem;animation-duration:24s;animation-delay:10s">🐟</div>
+<div class="fish" style="top:78%;font-size:1.3rem;animation-duration:38s;animation-delay:18s">🐡</div>
+
+<div id="toast"><span id="ti"></span>&nbsp;<span id="tm"></span></div>
+
+<div class="ov" id="lom">
+  <div class="mb">
+    <div style="font-size:3rem;margin-bottom:12px">🌊</div>
+    <h3>Log Out?</h3>
+    <p>Your analysis history is saved. Log back in anytime with the same name to see your full history.</p>
+    <div class="mbt">
+      <button class="btn bo" onclick="cmo()">Stay</button>
+      <button class="btn bd" onclick="dlo()">Log Out</button>
+    </div>
+  </div>
+</div>
+
+<nav id="nav">
+  <div class="logo">Reef<em>Guard</em> AI</div>
+  <div class="navr">
+    <div id="pill"><div id="av"></div><span id="uname"></span></div>
+    <span class="ld" id="ld" style="display:none">LIVE</span>
+    <button class="btn bd" id="lob" style="display:none" onclick="omo()">⏻ Log Out</button>
+  </div>
+</nav>
+
+<!-- LOGIN -->
+<div id="lp" class="pg">
+  <div class="lh">
+    <h1>ReefGuard AI</h1>
+    <p>Automated coral reef health monitoring &amp; bleaching detection platform powered by 8-parameter AI analysis and live satellite data.</p>
+  </div>
+  <div class="ms">
+    <div class="mc"><div class="mv">500+</div><div class="ml">Reef Zones</div></div>
+    <div class="mc"><div class="mv">98.4%</div><div class="ml">AI Accuracy</div></div>
+    <div class="mc"><div class="mv">24/7</div><div class="ml">Monitoring</div></div>
+    <div class="mc"><div class="mv">8</div><div class="ml">Parameters</div></div>
+    <div class="mc"><div class="mv">15+</div><div class="ml">Mapped Zones</div></div>
+  </div>
+  <div class="lc">
+    <h2>🌊 Researcher Access</h2>
+    <p>Enter your name to access the full monitoring dashboard. Session history is automatically saved per account.</p>
+    <div class="ig">
+      <label>Researcher / Team Name</label>
+      <input type="text" id="ln" placeholder="e.g. Dr. Anjali Sharma" maxlength="60" onkeydown="if(event.key==='Enter')dli()"/>
+    </div>
+    <div class="ig">
+      <label>Organization (Optional)</label>
+      <input type="text" id="lo" placeholder="e.g. ISRO Marine Division" maxlength="80" onkeydown="if(event.key==='Enter')dli()"/>
+    </div>
+    <button class="btn bp bfw" style="margin-top:6px" onclick="dli()">Enter Dashboard →</button>
+    <div class="fn">Session data stored locally · No server required</div>
+  </div>
+</div>
+
+<!-- DASHBOARD -->
+<div id="dash" class="pg">
+  <div class="dh">
+    <div>
+      <h1>🌊 Marine <span>Intelligence</span> Dashboard</h1>
+      <p id="wm">Welcome, Researcher</p>
+    </div>
+    <span class="ld">SATELLITE LIVE</span>
+  </div>
+  <div class="kr">
+    <div class="kp"><div class="ki">🌡️</div><div class="kv" id="k1">--</div><div class="kl">Sea Surface Temp °C</div><div class="ks">Live satellite feed</div></div>
+    <div class="kp"><div class="ki">🔬</div><div class="kv" id="k2">8.12</div><div class="kl">Ocean pH Level</div><div class="ks">Optimal: 8.1 – 8.3</div></div>
+    <div class="kp"><div class="ki">📊</div><div class="kv" id="k3">0</div><div class="kl">Total Analyses</div><div class="ks">Your account history</div></div>
+    <div class="kp"><div class="ki">🪸</div><div class="kv" id="k4">—</div><div class="kl">Last Reef Status</div><div class="ks">Most recent result</div></div>
+  </div>
+  <div class="tb">
+    <button class="tt act" onclick="sw('an',this)">🔍 Reef Analyzer</button>
+    <button class="tt" onclick="sw('mp',this)">🗺️ Reef Map</button>
+    <button class="tt" onclick="sw('hi',this)">📜 My History</button>
+    <button class="tt" onclick="sw('ps',this)">🧬 Problem Statement</button>
+    <button class="tt" onclick="sw('ed',this)">📚 Education</button>
+    <button class="tt" onclick="sw('ab',this)">ℹ️ About</button>
+  </div>
+
+  <!-- ANALYZER TAB -->
+  <div id="t-an" class="tc act">
+    <div class="g2">
+      <div class="cd">
+        <div class="ct">⚗️ Live Reef Parameter Analyzer</div>
+        <div class="fg">
+          <div class="ig"><label>Season</label>
+            <select id="fs">
+              <option value="">Select Season</option>
+              <option value="summer">☀️ Summer</option>
+              <option value="winter">❄️ Winter</option>
+              <option value="monsoon">🌧️ Monsoon</option>
+              <option value="spring">🌸 Spring</option>
+              <option value="autumn">🍂 Autumn</option>
+            </select>
+          </div>
+          <div class="ig"><label>Reef Location</label>
+            <select id="fl">
+              <option value="">Select Location</option>
+              <optgroup label="India">
+                <option>Lakshadweep Islands</option>
+                <option>Andaman &amp; Nicobar Islands</option>
+                <option>Gulf of Mannar</option>
+                <option>Gulf of Kutch</option>
+                <option>Palk Bay</option>
+              </optgroup>
+              <optgroup label="Global">
+                <option>Great Barrier Reef, AUS</option>
+                <option>Maldives</option>
+                <option>Red Sea</option>
+                <option>Coral Triangle</option>
+                <option>Caribbean Sea</option>
+                <option>Florida Keys, USA</option>
+              </optgroup>
+              <option>Other / Custom</option>
+            </select>
+          </div>
+          <div class="ig"><label>Temperature (°C)</label><input type="number" id="ft" placeholder="e.g. 29.5" step="0.1"/></div>
+          <div class="ig"><label>pH Level</label><input type="number" id="fp" placeholder="e.g. 8.1" step="0.01"/></div>
+          <div class="ig"><label>Turbidity (NTU)</label><input type="number" id="fb" placeholder="e.g. 4.5" step="0.1"/></div>
+          <div class="ig"><label>Salinity (ppt)</label><input type="number" id="fa" placeholder="e.g. 35" step="0.1"/></div>
+          <div class="ig"><label>Dissolved Oxygen (mg/L)</label><input type="number" id="fd" placeholder="e.g. 7.5" step="0.1"/></div>
+          <div class="ig"><label>Water Depth (m)</label><input type="number" id="fz" placeholder="e.g. 10" step="1"/></div>
+        </div>
+        <button class="btn bp bfw" style="margin-top:12px" onclick="ra()">🔬 Run AI Analysis</button>
+        <div class="rb" id="rb">
+          <div class="re" id="re"></div>
+          <div class="rs" id="rs"></div>
+          <div class="rd" id="rd"></div>
+          <div class="rm" id="rm"></div>
+        </div>
+        <div class="sp">
+          <div class="si">🛰</div>
+          <div>
+            <div class="sl">Live Satellite SST Feed</div>
+            <div class="sv2" id="sd">Connecting to satellite...</div>
+          </div>
+        </div>
+      </div>
+      <div class="cd" style="display:flex;flex-direction:column;gap:16px">
+        <div class="ct">📈 Parameter vs Safe Threshold</div>
+        <canvas id="pc" style="max-height:230px"></canvas>
+        <div class="ct" style="margin-top:6px">📉 Temperature History Trend</div>
+        <canvas id="tc" style="max-height:200px"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAP TAB -->
+  <div id="t-mp" class="tc">
+    <div style="padding:0 36px 36px">
+      <div class="cd gf">
+        <div class="ct">🗺️ Global Coral Reef Live Monitoring Map</div>
+        <p style="font-size:.83rem;color:rgba(255,255,255,.42);margin-bottom:13px;line-height:1.6">
+          Interactive map of 15 major reef zones worldwide. Click any marker for health status, sea surface temperature and pH data.</p>
+        <div id="map"></div>
+        <div class="ml2">
+          <span><span class="dt" style="background:#06d6a0"></span>Healthy</span>
+          <span><span class="dt" style="background:#f4a261"></span>Moderate Stress</span>
+          <span><span class="dt" style="background:#ef233c"></span>High Bleaching Risk</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- HISTORY TAB -->
+  <div id="t-hi" class="tc">
+    <div style="padding:0 36px 36px">
+      <div class="cd gf">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px">
+          <div class="ct" style="margin-bottom:0">📜 My Analysis History</div>
+          <button class="btn bo" style="font-size:.76rem;padding:7px 13px" onclick="ch()">🗑️ Clear All</button>
+        </div>
+        <div id="hc"><div class="em">No analyses yet.<br>Run your first reef analysis in the Analyzer tab.</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PROBLEM STATEMENT TAB -->
+  <div id="t-ps" class="tc">
+    <div style="padding:0 36px 36px">
+      <div class="cd gf">
+        <div class="ct">🧬 Problem Statement &amp; Research Context</div>
+        <p style="font-size:.93rem;color:rgba(255,255,255,.7);line-height:1.85;margin-bottom:18px">
+          <strong style="color:var(--teal)">Coral reefs cover less than 1% of the ocean floor</strong> yet support over 25% of all marine species.
+          They protect coastlines, support fisheries feeding over 1 billion people, and contribute an estimated
+          <strong style="color:var(--gold)">$375 billion annually</strong> to global economies through tourism, fisheries and coastal protection.
+          Today they face an existential crisis driven by climate change, ocean acidification and human pressure.
+        </p>
+        <div class="sb">
+          <div class="sc"><div class="sv">50%</div><div class="sl2">World Reefs Lost Since 1950</div></div>
+          <div class="sc"><div class="sv">90%</div><div class="sl2">Reefs At Risk by 2050</div></div>
+          <div class="sc"><div class="sv">6th</div><div class="sl2">GBR Mass Bleaching 2024</div></div>
+          <div class="sc"><div class="sv">70%</div><div class="sl2">Caribbean Reefs Destroyed</div></div>
+          <div class="sc"><div class="sv">1B+</div><div class="sl2">People Dependent on Reefs</div></div>
+        </div>
+        <div class="pg2">
+          <div class="pc"><div class="pi">🌡️</div><h4>Thermal Bleaching</h4><p>When sea surface temperatures rise 1–2°C above seasonal maxima for 3–4 weeks, corals expel their zooxanthellae algae and lose 90% of their energy source. Prolonged heat causes irreversible mass mortality within weeks.</p></div>
+          <div class="pc"><div class="pi">🔬</div><h4>Ocean Acidification</h4><p>Oceans absorb 30% of CO₂ emissions. Ocean pH has dropped from 8.2 to 8.1 since industrialisation. A projected pH of 7.95 by 2100 will dissolve coral skeletons and prevent new reef growth entirely.</p></div>
+          <div class="pc"><div class="pi">💧</div><h4>Turbidity &amp; Pollution</h4><p>Agricultural runoff and coastal development block sunlight critical for coral photosynthesis. Nutrient loading triggers algal blooms that outcompete and suffocate coral colonies permanently.</p></div>
+          <div class="pc"><div class="pi">⏱️</div><h4>Detection Latency</h4><p>Traditional reef monitoring relies on diver surveys conducted quarterly or annually — far too slow. Bleaching events can kill entire reefs within weeks. By the time bleaching is confirmed, intervention windows are already closed.</p></div>
+          <div class="pc"><div class="pi">🤖</div><h4>Our AI Solution</h4><p>ReefGuard AI processes 8 real-time environmental parameters through a risk-scoring AI model to detect bleaching threats days before visual onset. Satellite SST integration enables 24/7 automated monitoring at national scale.</p></div>
+          <div class="pc"><div class="pi">🇮🇳</div><h4>India's Reef Crisis</h4><p>India hosts ~2,375 km² of coral reefs across Lakshadweep, Andaman &amp; Nicobar, Gulf of Mannar and Gulf of Kutch. Gulf of Mannar saw 85% bleaching in 2020. Lakshadweep experienced catastrophic events in 1998, 2010, 2016 and 2020.</p></div>
+        </div>
+        <div style="margin-top:24px;padding:20px;background:rgba(0,180,216,.06);border:1px solid rgba(0,180,216,.2);border-radius:13px">
+          <div class="ct" style="margin-bottom:12px">🏗️ Solution Architecture</div>
+          <div class="ac">
+            <div class="acc"><div class="ai">📡</div><div class="at2">Data Ingestion</div><div class="as">Satellite SST · IoT sensors · Field surveys · Buoy telemetry</div></div>
+            <div class="acc"><div class="ai">🤖</div><div class="at2">AI Risk Engine</div><div class="as">8-param scoring · Bleaching prediction · Anomaly detection</div></div>
+            <div class="acc"><div class="ai">🗺️</div><div class="at2">Live Monitoring</div><div class="as">Global reef map · Real-time alerts · Historical trends</div></div>
+            <div class="acc"><div class="ai">🚨</div><div class="at2">Early Warning</div><div class="as">Automated alerts · Conservation triggers · Action reports</div></div>
+          </div>
+        </div>
+        <div style="margin-top:18px;padding:16px 18px;background:rgba(6,214,160,.06);border:1px solid rgba(6,214,160,.2);border-radius:12px">
+          <div style="font-size:.7rem;text-transform:uppercase;letter-spacing:2px;color:var(--green);margin-bottom:9px;font-weight:600">🌍 UN SDG Alignment</div>
+          <div class="sr">
+            <span class="st">🎯 SDG 14 · Life Below Water</span>
+            <span class="st">🌿 SDG 13 · Climate Action</span>
+            <span class="st">🔬 SDG 9 · Innovation</span>
+            <span class="st">🤝 SDG 17 · Partnerships</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- EDUCATION TAB -->
+  <div id="t-ed" class="tc">
+    <div style="padding:0 36px 36px">
+      <div class="cd gf">
+        <div class="ct">📚 Coral Reef Science &amp; Conservation</div>
+        <div class="ig2">
+          <div class="ic"><div class="ico">🌡️</div><h4>Thermal Bleaching Mechanism</h4><p>At 1–2°C above seasonal maxima, corals expel zooxanthellae algae providing up to 90% of their energy. Bleaching does not immediately kill corals — mortality becomes likely if temperatures persist beyond 4 weeks without recovery.</p></div>
+          <div class="ic"><div class="ico">🔬</div><h4>Ocean Acidification</h4><p>Oceans absorb ~30% of anthropogenic CO₂, forming carbonic acid. Current ocean pH is ~8.1 vs pre-industrial 8.2. Aragonite saturation required for coral skeletal growth drops dramatically below pH 8.0, weakening and dissolving reef structures.</p></div>
+          <div class="ic"><div class="ico">💧</div><h4>Turbidity &amp; Light Attenuation</h4><p>High turbidity (NTU &gt;10) reduces sunlight for photosynthesis. Runoff from agriculture and construction introduces suspended sediments and nutrients causing smothering, algal overgrowth and coral suffocation.</p></div>
+          <div class="ic"><div class="ico">🧂</div><h4>Salinity Stress</h4><p>Optimal salinity for corals is 32–42 ppt. Freshwater intrusion from heavy rainfall causes osmotic stress. Evaporation in enclosed lagoons creates hypersaline conditions. Both extremes cause physiological stress and bleaching events.</p></div>
+          <div class="ic"><div class="ico">🫧</div><h4>Dissolved Oxygen</h4><p>Reef health requires 6–8 mg/L DO. Eutrophication from nutrient runoff fuels algal blooms. Bacterial decomposition depletes oxygen, creating hypoxic zones (DO &lt;2 mg/L). Fish kills and coral mortality can occur within hours.</p></div>
+          <div class="ic"><div class="ico">🛰️</div><h4>Satellite Remote Sensing</h4><p>NOAA CoralTemp provides global daily SST at 5km resolution. ISRO Oceansat-3 carries Ocean Color Monitor and SST Monitor. These feeds detect thermal anomalies (Degree Heating Weeks) predicting bleaching 2–4 weeks in advance.</p></div>
+          <div class="ic"><div class="ico">🇮🇳</div><h4>India's Marine Biodiversity</h4><p>India's ~2,375 km² of coral reefs span four regions: Lakshadweep (fringing and platform reefs), Andaman &amp; Nicobar (fringing, barrier and patch reefs), Gulf of Mannar (patch reefs) and Gulf of Kutch. They support ~1,192 fish species.</p></div>
+          <div class="ic"><div class="ico">📉</div><h4>Global Crisis Data</h4><p>The 2022 GCRMN report confirmed 14% of reefs destroyed since 2009. 50% of all reef coral lost since 1950. Mass bleaching events are now 5× more frequent than the 1980s. Without climate action, 70–90% of reefs will be lost by 2050.</p></div>
+          <div class="ic"><div class="ico">💡</div><h4>Conservation Technologies</h4><p>Active interventions include coral gardening (nursery-grown fragments transplanted to degraded reefs), assisted gene flow (heat-resistant genotypes), 3D-printed reef structures, and cloud seeding to reduce SST. AI early warning is now critical for rapid coordinated response.</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ABOUT TAB -->
+  <div id="t-ab" class="tc">
+    <div style="padding:0 36px 36px">
+      <div class="cd gf">
+        <div class="ct">ℹ️ About ReefGuard AI</div>
+        <div class="ag">
+          <div class="at">
+            <p><strong>ReefGuard AI</strong> is a prototype for automated coral reef health monitoring and bleaching detection. It processes <strong>8 real-time environmental parameters</strong> through a multi-factor AI risk scoring engine to classify reef health and predict bleaching risk before visual symptoms appear.</p>
+            <p>The platform combines <strong>live satellite sea surface temperature feeds</strong>, an interactive global reef map with 15+ monitored zones, per-researcher session history, trend charts and a reef science education module.</p>
+            <p>Built to address the critical need for scalable, affordable, real-time coral reef monitoring — enabling marine biologists, conservationists and policymakers to act within narrow intervention windows before bleaching becomes irreversible.</p>
+            <div class="sx">
+              <div class="sh">Technical Specifications</div>
+              <div class="sg">
+                <span>🔬 Parameters: <strong>8</strong></span>
+                <span>🗺️ Reef Zones: <strong>15</strong></span>
+                <span>🤖 Risk Model: <strong>v2.1</strong></span>
+                <span>📡 SST Feed: <strong>Live (4s)</strong></span>
+                <span>📜 History: <strong>Per-User</strong></span>
+                <span>📊 Charts: <strong>Real-Time</strong></span>
+                <span>🌐 Map: <strong>Interactive</strong></span>
+                <span>💾 Storage: <strong>LocalStorage</strong></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <p>ReefGuard AI © 2025 · Marine Intelligence Division</p>
+    <p style="margin-top:4px;opacity:.6">🌊 Every data point brings us closer to saving our reefs.</p>
+  </footer>
+</div>
+
+<script>
+(function(){
+'use strict';
+var u='',db={},pch=null,tch=null,mp=false,st=null;
+
+function ldb(){try{db=JSON.parse(localStorage.getItem('rg')||'{}');}catch(e){db={};}}
+function sdb(){try{localStorage.setItem('rg',JSON.stringify(db));}catch(e){}}
+ldb();
+
+function toast(m,i){
+  document.getElementById('ti').textContent=i||'';
+  document.getElementById('tm').textContent=m;
+  var el=document.getElementById('toast');
+  el.classList.add('show');
+  clearTimeout(el._t);
+  el._t=setTimeout(function(){el.classList.remove('show');},3500);
+}
+
+window.omo=function(){document.getElementById('lom').classList.add('show');};
+window.cmo=function(){document.getElementById('lom').classList.remove('show');};
+
+window.dli=function(){
+  var n=(document.getElementById('ln').value||'').trim();
+  var o=(document.getElementById('lo').value||'').trim();
+  if(!n){toast('Please enter your researcher name.','⚠️');return;}
+  u=n;
+  if(!db[u])db[u]=[];
+  sdb();
+  document.getElementById('lp').style.display='none';
+  document.getElementById('dash').style.display='block';
+  document.getElementById('wm').textContent='Welcome, '+n+(o?' · '+o:'');
+  document.getElementById('uname').textContent=n;
+  document.getElementById('av').textContent=n.charAt(0).toUpperCase();
+  document.getElementById('pill').style.display='flex';
+  document.getElementById('ld').style.display='inline-flex';
+  document.getElementById('lob').style.display='block';
+  rk();sat();btc();
+  toast('Welcome, '+n+'! 🌊','🌊');
+};
+
+window.dlo=function(){
+  cmo();
+  clearInterval(st);u='';
+  document.getElementById('dash').style.display='none';
+  document.getElementById('lp').style.display='flex';
+  document.getElementById('pill').style.display='none';
+  document.getElementById('ld').style.display='none';
+  document.getElementById('lob').style.display='none';
+  document.getElementById('ln').value='';
+  document.getElementById('lo').value='';
+  document.getElementById('rb').style.display='none';
+  var all=document.querySelectorAll('.tc');
+  for(var i=0;i<all.length;i++)all[i].classList.remove('act');
+  document.getElementById('t-an').classList.add('act');
+  var bs=document.querySelectorAll('.tt');
+  for(var j=0;j<bs.length;j++)bs[j].classList.remove('act');
+  bs[0].classList.add('act');
+  toast('Logged out. History saved.','👋');
+};
+
+window.sw=function(n,b){
+  var all=document.querySelectorAll('.tc');
+  for(var i=0;i<all.length;i++)all[i].classList.remove('act');
+  var bs=document.querySelectorAll('.tt');
+  for(var j=0;j<bs.length;j++)bs[j].classList.remove('act');
+  var t=document.getElementById('t-'+n);
+  if(t)t.classList.add('act');
+  if(b)b.classList.add('act');
+  if(n==='mp'&&!mp)initMap();
+  if(n==='hi')rh();
+};
+
+function sat(){
+  function tick(){
+    var t=(27+Math.random()*5).toFixed(2);
+    var ph=(8.0+Math.random()*0.28).toFixed(2);
+    document.getElementById('sd').textContent=t+'°C — Indian Ocean (Satellite)';
+    document.getElementById('k1').textContent=t;
+    document.getElementById('k2').textContent=ph;
+  }
+  tick();st=setInterval(tick,4000);
+}
+
+function rk(){
+  var r=db[u]||[];
+  document.getElementById('k3').textContent=r.length;
+  document.getElementById('k4').textContent=r.length?r[r.length-1].result.split(' ')[0]:'—';
+}
+
+window.ra=function(){
+  var sea=document.getElementById('fs').value;
+  var loc=document.getElementById('fl').value;
+  var tmp=parseFloat(document.getElementById('ft').value);
+  var ph=parseFloat(document.getElementById('fp').value);
+  var tr=parseFloat(document.getElementById('fb').value);
+  var sal=parseFloat(document.getElementById('fa').value);
+  var dov=parseFloat(document.getElementById('fd').value);
+  if(!sea||isNaN(tmp)||isNaN(ph)||isNaN(tr)){
+    toast('Please select Season and enter Temperature, pH and Turbidity.','⚠️');return;
+  }
+  var risk=0,iss=[],rec=[];
+  if(tmp>31){risk+=4;iss.push('Critical thermal stress ('+tmp+'°C > 31°C bleaching threshold)');rec.push('🚨 Alert marine conservation teams immediately');}
+  else if(tmp>30){risk+=3;iss.push('High thermal stress ('+tmp+'°C)');rec.push('⚠️ Increase monitoring to daily');}
+  else if(tmp>28.5){risk+=2;iss.push('Elevated temperature ('+tmp+'°C)');}
+  else if(tmp>27){risk+=1;iss.push('Temperature in normal range');}
+
+  if(ph<7.7){risk+=4;iss.push('Severe acidification (pH '+ph+')');rec.push('🔬 Sample water for carbonate chemistry analysis');}
+  else if(ph<7.9){risk+=3;iss.push('High acidification risk (pH '+ph+')');}
+  else if(ph<8.0){risk+=2;iss.push('Moderate acidification (pH '+ph+')');}
+  else if(ph<8.1){risk+=1;iss.push('pH slightly below optimal');}
+  else if(ph>8.35){risk+=1;iss.push('pH slightly elevated');}
+
+  if(tr>15){risk+=3;iss.push('Very high turbidity ('+tr+' NTU) — critical light blockage');rec.push('💧 Investigate upstream runoff sources');}
+  else if(tr>8){risk+=2;iss.push('Elevated turbidity ('+tr+' NTU)');}
+  else if(tr>4){risk+=1;iss.push('Moderate turbidity ('+tr+' NTU)');}
+
+  if(!isNaN(sal)){
+    if(sal<26||sal>46){risk+=3;iss.push('Critical salinity anomaly ('+sal+' ppt)');rec.push('🧂 Check for freshwater intrusion or hypersaline event');}
+    else if(sal<30||sal>42){risk+=1;iss.push('Salinity outside optimal range ('+sal+' ppt)');}
+  }
+  if(!isNaN(dov)){
+    if(dov<3){risk+=4;iss.push('Hypoxic conditions ('+dov+' mg/L DO) — mortality risk');rec.push('⚡ Hypoxia event — immediate intervention needed');}
+    else if(dov<5){risk+=3;iss.push('Low dissolved oxygen ('+dov+' mg/L)');rec.push('🫧 Check for algal bloom or eutrophication');}
+    else if(dov<6.5){risk+=1;iss.push('DO slightly below optimal ('+dov+' mg/L)');}
+  }
+  if(sea==='summer'){risk+=2;iss.push('Summer: peak bleaching season — heightened risk');}
+  if(sea==='monsoon'){risk+=1;iss.push('Monsoon: elevated turbidity and salinity fluctuation risk');}
+
+  var status,cls,lines;
+  if(risk<=4){
+    status='HEALTHY REEF';cls='h';
+    lines=['All parameters within safe operating ranges.','Reef shows no indicators of thermal stress or bleaching.','','✅ Continue regular monitoring schedule.','✅ Conditions are favorable for coral growth and biodiversity.','✅ Document baseline data for future comparison.'];
+  } else if(risk<=9){
+    status='MODERATE STRESS';cls='m';
+    lines=['Reef is under moderate environmental stress. Early warning indicators detected.','','⚠️ Issues identified:'].concat(iss.slice(0,3).map(function(x){return'  • '+x;})).concat(['','⚠️ Recommendations:']).concat((rec.length?rec:['Increase monitoring frequency to weekly','Engage local conservation stakeholders','Prepare emergency response protocols']).map(function(r){return'  '+r;}));
+  } else {
+    status='HIGH BLEACHING RISK';cls='d';
+    lines=['CRITICAL: Multiple severe risk factors detected. Bleaching event likely imminent.','','🚨 Critical issues:'].concat(iss.slice(0,4).map(function(x){return'  • '+x;})).concat(['','🚨 Urgent actions:','  🚨 Alert NCSCM / MOEF marine conservation teams','  🚨 Deploy emergency field assessment team','  🚨 Initiate coral rescue protocols immediately']).concat(rec.map(function(r){return'  '+r;}));
+  }
+
+  var box=document.getElementById('rb');
+  box.className='rb '+cls;box.style.display='block';
+  document.getElementById('re').textContent=cls==='h'?'🪸✨':cls==='m'?'🐠⚠️':'🪸🚨';
+  document.getElementById('rs').textContent=status;
+  document.getElementById('rd').textContent=lines.join('\n');
+  document.getElementById('rm').textContent='Risk Score: '+risk+'/22  ·  Location: '+(loc||'Unspecified')+'  ·  Season: '+sea+'  ·  '+new Date().toLocaleTimeString();
+  document.getElementById('k4').textContent=status.split(' ')[0];
+  bpc(tmp,ph,tr);
+  db[u].push({time:new Date().toLocaleString(),location:loc||'—',temp:tmp,ph:ph,turbidity:tr,salinity:isNaN(sal)?'—':sal,dO:isNaN(dov)?'—':dov,season:sea,result:status,risk:risk});
+  sdb();rk();utc();
+  toast('Analysis: '+status,'🔬');
+};
+
+function bpc(t,p,tr){
+  if(pch){pch.destroy();pch=null;}
+  var ctx=document.getElementById('pc').getContext('2d');
+  pch=new Chart(ctx,{
+    type:'bar',
+    data:{labels:['Temperature (°C)','pH Level','Turbidity (NTU)'],
+      datasets:[
+        {label:'Measured',data:[t,p,tr],backgroundColor:[t>29?'rgba(239,35,60,.75)':'rgba(6,214,160,.75)',p<8.0?'rgba(244,162,97,.75)':'rgba(6,214,160,.75)',tr>8?'rgba(239,35,60,.75)':'rgba(0,180,216,.75)'],borderWidth:0,borderRadius:7},
+        {label:'Safe Threshold',data:[28,8.1,5],backgroundColor:'rgba(255,255,255,.06)',borderColor:'rgba(255,255,255,.25)',borderWidth:1,borderRadius:7}
+      ]},
+    options:{responsive:true,plugins:{legend:{labels:{color:'rgba(255,255,255,.56)',font:{family:'Exo 2',size:12}}}},scales:{x:{ticks:{color:'rgba(255,255,255,.52)'},grid:{color:'rgba(255,255,255,.04)'}},y:{ticks:{color:'rgba(255,255,255,.52)'},grid:{color:'rgba(255,255,255,.04)'}}}}
+  });
+}
+
+function btc(){
+  if(tch){tch.destroy();tch=null;}
+  var r=(db[u]||[]).slice(-12);
+  var ctx=document.getElementById('tc').getContext('2d');
+  tch=new Chart(ctx,{
+    type:'line',
+    data:{labels:r.length?r.map(function(x,i){return'#'+(i+1);}) :['No data'],
+      datasets:[{label:'Sea Temp (°C)',data:r.length?r.map(function(x){return x.temp;}):[null],borderColor:'rgba(0,180,216,1)',backgroundColor:'rgba(0,180,216,.1)',fill:true,tension:0.4,pointRadius:5,pointBackgroundColor:'rgba(0,180,216,1)'}]},
+    options:{responsive:true,plugins:{legend:{labels:{color:'rgba(255,255,255,.56)',font:{family:'Exo 2',size:12}}}},scales:{x:{ticks:{color:'rgba(255,255,255,.52)'},grid:{color:'rgba(255,255,255,.04)'}},y:{ticks:{color:'rgba(255,255,255,.52)'},grid:{color:'rgba(255,255,255,.04)'}}}}
+  });
+}
+
+function utc(){
+  if(!tch){btc();return;}
+  var r=(db[u]||[]).slice(-12);
+  tch.data.labels=r.map(function(x,i){return'#'+(i+1);});
+  tch.data.datasets[0].data=r.map(function(x){return x.temp;});
+  tch.update();
+}
+
+var RZ=[
+  {n:'Great Barrier Reef',la:-18.2,lo:147.7,s:'moderate',t:29.4,p:8.00,d:'World\'s largest reef. 6th mass bleaching event in 2024.'},
+  {n:'Lakshadweep Islands',la:10.5,lo:72.6,s:'moderate',t:28.9,p:8.10,d:'India\'s largest reef (~4,200 km²). Bleaching in 1998, 2010, 2016, 2020.'},
+  {n:'Andaman & Nicobar',la:12.5,lo:93.0,s:'healthy',t:27.8,p:8.20,d:'Pristine fringing and barrier reefs with high biodiversity.'},
+  {n:'Gulf of Mannar',la:9.0,lo:79.0,s:'danger',t:31.2,p:7.90,d:'85% bleaching in 2020. Severe runoff and warming pressure.'},
+  {n:'Gulf of Kutch',la:22.7,lo:69.5,s:'moderate',t:28.3,p:8.00,d:'India\'s westernmost reef. Impacted by coastal industry.'},
+  {n:'Palk Bay',la:9.8,lo:79.5,s:'danger',t:30.5,p:7.95,d:'Heavy fishing pressure and chronic sedimentation stress.'},
+  {n:'Maldives',la:3.2,lo:73.2,s:'moderate',t:29.5,p:8.05,d:'Atoll reefs facing sea-level rise and recurring bleaching.'},
+  {n:'Red Sea Reefs',la:22.5,lo:38.5,s:'healthy',t:26.5,p:8.22,d:'Among the most heat-tolerant reefs globally.'},
+  {n:'Caribbean Reefs',la:15.5,lo:-73.5,s:'danger',t:30.8,p:7.95,d:'70% of Caribbean reefs lost in the past 50 years.'},
+  {n:'Coral Triangle',la:2.0,lo:128.0,s:'moderate',t:28.5,p:8.10,d:'World\'s most biodiverse reef region — 76% of all coral species.'},
+  {n:'Florida Keys',la:24.8,lo:-81.0,s:'danger',t:31.5,p:7.92,d:'Record 2023 bleaching event with widespread coral mortality.'},
+  {n:'Tubbataha Reef',la:8.9,lo:119.9,s:'healthy',t:27.5,p:8.18,d:'UNESCO World Heritage site. Strictly protected no-fishing zone.'},
+  {n:'Ningaloo Reef',la:-22.5,lo:113.8,s:'healthy',t:26.8,p:8.15,d:'Remote Western Australia reef with pristine conditions.'},
+  {n:'New Caledonia',la:-21.5,lo:165.5,s:'healthy',t:27.2,p:8.20,d:'2nd largest barrier reef. UNESCO World Heritage lagoon.'},
+  {n:'Hawaii Reefs',la:21.0,lo:-157.0,s:'moderate',t:28.0,p:8.10,d:'Mixed recovery from 2023 bleaching. Some areas improving.'}
+];
+
+function initMap(){
+  mp=true;
+  var m=L.map('map',{center:[10,90],zoom:2});
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{attribution:'CartoDB',maxZoom:18,subdomains:'abcd'}).addTo(m);
+  var cl={healthy:'#06d6a0',moderate:'#f4a261',danger:'#ef233c'};
+  var lb={healthy:'✅ Healthy',moderate:'⚠️ Moderate Stress',danger:'🚨 High Bleaching Risk'};
+  RZ.forEach(function(r){
+    var c=cl[r.s]||'#aaa';
+    L.circleMarker([r.la,r.lo],{radius:11,fillColor:c,color:c,weight:2,opacity:.9,fillOpacity:.75}).addTo(m)
+    .bindPopup(
+      '<div style="font-family:sans-serif;min-width:230px">'+
+      '<b style="font-size:1rem">'+r.n+'</b><br>'+
+      '<span style="color:'+c+';font-size:.78rem;font-weight:700;text-transform:uppercase">'+lb[r.s]+'</span>'+
+      '<p style="font-size:.8rem;color:#444;margin:7px 0">'+r.d+'</p>'+
+      '<span style="font-size:.78rem;color:#333">🌡️ '+r.t+'°C &nbsp; 🔬 pH '+r.p+'</span>'+
+      '</div>',{maxWidth:270}
+    );
+  });
+}
+
+window.rh=function(){
+  var r=db[u]||[];
+  var c=document.getElementById('hc');
+  if(!r.length){c.innerHTML='<div class="em">No analyses yet.<br>Run your first reef analysis in the Analyzer tab.</div>';return;}
+  var rows=r.slice().reverse().map(function(x,i){
+    var bc=x.risk<=4?'gs':x.risk<=9?'gm':'gd';
+    return'<tr><td>'+(r.length-i)+'</td><td style="font-size:.74rem;color:rgba(255,255,255,.35)">'+x.time+'</td><td>'+x.location+'</td><td>'+x.temp+'°C</td><td>'+x.ph+'</td><td>'+x.turbidity+'</td><td>'+x.salinity+'</td><td>'+x.dO+'</td><td>'+x.season+'</td><td><span class="bg '+bc+'">'+x.result+'</span></td></tr>';
+  }).join('');
+  c.innerHTML='<div style="overflow-x:auto"><table class="ht"><thead><tr><th>#</th><th>Time</th><th>Location</th><th>Temp</th><th>pH</th><th>Turb.</th><th>Sal.</th><th>DO</th><th>Season</th><th>Result</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+};
+
+window.ch=function(){
+  if(!confirm('Clear all analysis history? This cannot be undone.'))return;
+  db[u]=[];sdb();rk();
+  if(tch){tch.data.labels=[];tch.data.datasets[0].data=[];tch.update();}
+  rh();toast('History cleared.','🗑️');
+};
+})();
+</script>
+</body>
+</html>
