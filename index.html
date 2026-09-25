@@ -634,8 +634,20 @@ window.ra=function(){
   var sal=parseFloat(document.getElementById('fa').value);
   var dov=parseFloat(document.getElementById('fd').value);
   if(!sea||isNaN(tmp)||isNaN(ph)||isNaN(tr)){
-    toast('Please select Season and enter Temperature, pH and Turbidity.','⚠️');return;
-  }
+  toast('Please select Season and enter Temperature, pH and Turbidity.','⚠️');return;
+}
+
+if(tmp < 0 || tmp > 50){
+  toast('Please enter a valid temperature between 0°C and 50°C.','⚠️');return;
+}
+
+if(ph < 0 || ph > 14){
+  toast('Please enter a valid pH value between 0 and 14.','⚠️');return;
+}
+
+if(tr < 0){
+  toast('Turbidity cannot be negative.','⚠️');return;
+}
   var risk=0,iss=[],rec=[];
   if(tmp>31){risk+=4;iss.push('Critical thermal stress ('+tmp+'°C > 31°C bleaching threshold)');rec.push('🚨 Alert marine conservation teams immediately');}
   else if(tmp>30){risk+=3;iss.push('High thermal stress ('+tmp+'°C)');rec.push('⚠️ Increase monitoring to daily');}
